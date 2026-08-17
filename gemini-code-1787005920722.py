@@ -25,7 +25,7 @@ if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "admin1234"
+ADMIN_PASSWORD = "5327"
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
