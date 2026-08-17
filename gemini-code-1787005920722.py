@@ -27,7 +27,49 @@ if "last_order_msg" not in st.session_state:
     st.session_state.last_order_msg = {}  # 各生徒の最後の注文メッセージ保持用
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "5327"
+ADMIN_PASSWORD = "admin1234"
+
+
+def calculate_equilibrium(players):
+    """需要と供給から理論上の均衡価格・取引量を計算する"""
+    buyers_values = sorted(
+        [p["value"] for p in players.values() if p["role"] == "買い手"],
+        reverse=True,
+    )
+    sellers_values = sorted(
+        [p["value"] for p in players.values() if p["role"] == "売り手"]
+    )
+
+    k = 0
+    while k < len(buyers_values) and k < len(sellers_values):
+        if buyers_values[k] >= sellers_values[k]:
+            k += 1
+        else:
+            break
+
+    if k == 0:
+        return "取引不成立（需要と供給が不一致）", 0
+
+    p_min = max(
+        sellers_values[k - 1],
+        buyers_values[k]
+        if k < len(buyers_values)
+        else sellers_values[k - 1],
+    )
+    p_max = min(
+        buyers_values[k - 1],
+        sellers_values[k]
+        if k < len(sellers_values)
+        else buyers_values[k - 1],
+    )
+
+    if p_min == p_max:
+        eq_price_str = f"{p_min} 円"
+    else:
+        eq_price_str = f"{p_min} 円 〜 {p_max} 円"
+
+    return eq_price_str, k
+
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
@@ -74,21 +116,26 @@ if mode == "教員用管理画面":
         student_list_input = st.text_area(
             "参加する生徒の名前（または出席番号）を改行区切りで入力してください",
             value=default_students,
-            height=300,
+            height=200,
         )
 
         col1, col2 = st.columns(2)
         with col1:
             min_val = st.number_input(
-                "評価額/コストの最小値", value=100, step=100
+                "評価額/コストの最小値（円）",
+                value=100,
+                step=100,
+                min_value=0,
             )
         with col2:
             max_val = st.number_input(
-                "評価額/コストの最大値", value=2200, step=100
+                "評価額/コストの最大値（円）",
+                value=2200,
+                step=100,
+                min_value=0,
             )
 
         if st.button("👥 役割割り当て＆実験スタート", type="primary"):
-            # 改行で分割してリスト化（入力された順序を保持）
             students = [
                 s.strip() for s in student_list_input.split("\n") if s.strip()
             ]
@@ -99,24 +146,21 @@ if mode == "教員用管理画面":
             elif min_val > max_val:
                 st.error("最小値は最大値以下の数値を設定してください。")
             else:
-                # シャッフル用の複製を作成
                 shuffled_students = students.copy()
                 random.shuffle(shuffled_students)
 
-                # 人数調整（奇数の場合は買い手を減らす）
                 half = num_students // 2
                 buyers = shuffled_students[:half]
                 sellers = shuffled_students[half:]
 
                 players = {}
-                # 買い手の設定
+                # 100円刻みで評価額/コストを設定
                 for b in buyers:
                     players[b] = {
                         "role": "買い手",
                         "value": random.randrange(min_val, max_val + 1, 100),
                         "traded": False,
                     }
-                # 売り手の設定
                 for s in sellers:
                     players[s] = {
                         "role": "売り手",
@@ -124,7 +168,6 @@ if mode == "教員用管理画面":
                         "traded": False,
                     }
 
-                # 元の入力順（出席番号順）に辞書を作り直す
                 st.session_state.players = {
                     s: players[s] for s in students if s in players
                 }
@@ -141,6 +184,19 @@ if mode == "教員用管理画面":
 
         # リアルタイム監視パネル
         st.subheader("2. 市場の状況（リアルタイム）")
+
+        if st.session_state.game_started and st.session_state.players:
+            # 💡 均衡価格（理論値）の計算表示
+            eq_price, eq_qty = calculate_equilibrium(st.session_state.players)
+
+            st.info("📊 **【理論値】市場の均衡予想**")
+            col_eq1, col_eq2 = st.columns(2)
+            with col_eq1:
+                st.metric(label="🎯 均衡価格（理論値）", value=eq_price)
+            with col_eq2:
+                st.metric(
+                    label="📦 均衡取引数量（理論値）", value=f"{eq_qty} 件"
+                )
 
         col_a, col_b = st.columns(2)
         with col_a:
@@ -178,7 +234,6 @@ else:
         time.sleep(2)
         st.rerun()
     else:
-        # 生徒リストを番号順（昇順）にソート
         def get_sort_key(name):
             half_name = name.translate(
                 str.maketrans("０１２３４５６７８９", "0123456789")
@@ -204,7 +259,6 @@ else:
             role = my_info["role"]
             limit_val = my_info["value"]
 
-            # 自分の状態表示
             st.info(f"**あなたの役割:** {role}")
 
             if role == "買い手":
@@ -230,7 +284,6 @@ else:
                 st.divider()
                 st.subheader("注文の発注")
 
-                # 発注フォーム
                 price_input = st.number_input(
                     "提示する価格（円）",
                     min_value=0,
@@ -239,7 +292,6 @@ else:
                 )
 
                 if st.button("注文する", type="primary"):
-                    # チェック処理
                     if role == "買い手" and price_input > limit_val:
                         st.error("所持金を超える金額は提示できません！")
                     elif role == "売り手" and price_input < limit_val:
@@ -256,10 +308,9 @@ else:
                                 {"player": my_name, "price": price_input}
                             )
 
-                        # 注文完了メッセージの保持
                         st.session_state.last_order_msg[my_name] = f"注文しました！（提示価格: {price_input} 円）"
 
-                        # 約定（マッチング）ロジックの実行
+                        # マッチングロジック
                         valid_bids = [
                             b
                             for b in st.session_state.bids
@@ -299,11 +350,10 @@ else:
 
                         st.rerun()
 
-                # 直前に注文を出していた場合はメッセージを表示
                 if my_name in st.session_state.last_order_msg:
                     st.info(st.session_state.last_order_msg[my_name])
 
-            # 現在の市場板情報
+            # 市場板情報
             st.divider()
             st.subheader("📊 現在の市場状況（板情報）")
             col_bid, col_ask = st.columns(2)
