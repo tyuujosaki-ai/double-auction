@@ -1,6 +1,7 @@
 import random
 import pandas as pd
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 
 # ページ初期設定
 st.set_page_config(page_title="経済実験：オーラルダブルオークション", layout="wide")
@@ -16,7 +17,7 @@ if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
 # 管理画面用パスワード設定（※自由に変更してください）
-ADMIN_PASSWORD = "5327"
+ADMIN_PASSWORD = "admin1234"
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
@@ -112,7 +113,8 @@ if mode == "教員用管理画面":
 
         st.divider()
 
-        # リアルタイム監視パネル
+        # リアルタイム監視パネル（教員画面も3秒ごとに自動更新）
+        st_autorefresh(interval=3000, key="admin_refresh")
         st.subheader("2. 市場の状況（リアルタイム）")
 
         col_a, col_b = st.columns(2)
@@ -144,9 +146,12 @@ if mode == "教員用管理画面":
 else:
     st.header("👤 生徒用 取引画面")
 
+    # 2秒ごとに画面を自動更新（リアルタイム反映のため）
+    st_autorefresh(interval=2000, key="student_refresh")
+
     if not st.session_state.game_started:
         st.warning(
-            "教員が実験を開始するまでお待ちください。画面を更新（リロード）して確認してください。"
+            "教員が実験を開始するまでお待ちください。（画面は自動で更新されます）"
         )
     else:
         # 生徒の識別
