@@ -27,7 +27,7 @@ if "last_order_msg" not in st.session_state:
     st.session_state.last_order_msg = {}  # 各生徒の最後の注文メッセージ保持用
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "admin1234"
+ADMIN_PASSWORD = "5327"
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
