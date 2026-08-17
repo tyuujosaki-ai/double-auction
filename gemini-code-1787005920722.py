@@ -40,9 +40,9 @@ if mode == "教員用管理画面":
 
     col1, col2 = st.columns(2)
     with col1:
-        min_val = st.number_input("評価額/コストの最小値", value=100, step=50)
+        min_val = st.number_input("評価額/コストの最小値", value=100, step=100)
     with col2:
-        max_val = st.number_input("評価額/コストの最大値", value=2200, step=50)
+        max_val = st.number_input("評価額/コストの最大値", value=1000, step=100)
 
     if st.button("👥 役割割り当て＆実験スタート", type="primary"):
         students = [
@@ -52,6 +52,8 @@ if mode == "教員用管理画面":
 
         if num_students < 2:
             st.error("生徒は2名以上必要です。")
+        elif min_val > max_val:
+            st.error("最小値は最大値以下の数値を設定してください。")
         else:
             random.shuffle(students)
 
@@ -61,18 +63,18 @@ if mode == "教員用管理画面":
             sellers = students[half:]
 
             players = {}
-            # 買い手の設定
+            # 買い手の設定（100円刻みでランダム設定）
             for b in buyers:
                 players[b] = {
                     "role": "買い手",
-                    "value": random.randint(min_val // 10, max_val // 10) * 10,
+                    "value": random.randrange(min_val, max_val + 1, 100),
                     "traded": False,
                 }
-            # 売り手の設定
+            # 売り手の設定（100円刻みでランダム設定）
             for s in sellers:
                 players[s] = {
                     "role": "売り手",
-                    "value": random.randint(min_val // 10, max_val // 10) * 10,
+                    "value": random.randrange(min_val, max_val + 1, 100),
                     "traded": False,
                 }
 
@@ -159,9 +161,9 @@ else:
                 st.divider()
                 st.subheader("注文の発注")
 
-                # 発注フォーム
+                # 発注フォーム（100円単位で入力できるようにstepを100に変更）
                 price_input = st.number_input(
-                    "提示する価格（円）", min_value=0, step=10, value=limit_val
+                    "提示する価格（円）", min_value=0, step=100, value=limit_val
                 )
 
                 if st.button("注文を提出する", type="primary"):
