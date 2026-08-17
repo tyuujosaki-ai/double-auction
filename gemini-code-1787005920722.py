@@ -25,7 +25,7 @@ if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "5327"
+ADMIN_PASSWORD = "admin1234"
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
@@ -86,6 +86,7 @@ if mode == "教員用管理画面":
             )
 
         if st.button("👥 役割割り当て＆実験スタート", type="primary"):
+            # 改行で分割してリスト化（入力された順序を保持）
             students = [
                 s.strip() for s in student_list_input.split("\n") if s.strip()
             ]
@@ -96,22 +97,24 @@ if mode == "教員用管理画面":
             elif min_val > max_val:
                 st.error("最小値は最大値以下の数値を設定してください。")
             else:
-                random.shuffle(students)
+                # シャッフル用の複製を作成
+                shuffled_students = students.copy()
+                random.shuffle(shuffled_students)
 
-                # ルールに基づく人数調整（奇数の場合は買い手を減らす）
+                # 人数調整（奇数の場合は買い手を減らす）
                 half = num_students // 2
-                buyers = students[:half]
-                sellers = students[half:]
+                buyers = shuffled_students[:half]
+                sellers = shuffled_students[half:]
 
                 players = {}
-                # 買い手の設定（100円刻みでランダム設定）
+                # 買い手の設定
                 for b in buyers:
                     players[b] = {
                         "role": "買い手",
                         "value": random.randrange(min_val, max_val + 1, 100),
                         "traded": False,
                     }
-                # 売り手の設定（100円刻みでランダム設定）
+                # 売り手の設定
                 for s in sellers:
                     players[s] = {
                         "role": "売り手",
@@ -119,7 +122,10 @@ if mode == "教員用管理画面":
                         "traded": False,
                     }
 
-                st.session_state.players = players
+                # 元の入力順（出席番号順）に辞書を作り直す
+                st.session_state.players = {
+                    s: players[s] for s in students if s in players
+                }
                 st.session_state.bids = []
                 st.session_state.asks = []
                 st.session_state.trades = []
@@ -169,10 +175,27 @@ else:
         time.sleep(2)
         st.rerun()
     else:
-        # 生徒の識別
-        player_names = list(st.session_state.players.keys())
+        # 生徒リストを番号順（昇順）にソート
+        def get_sort_key(name):
+            # 全角数字を半角数字に変換して数値化を試みる
+            half_name = name.translate(
+                str.maketrans("０１２３４５６７８９", "0123456789")
+            )
+            try:
+                return (0, int(half_name))  # 数値に変換できる場合は数値順
+            except ValueError:
+                return (1, name)  # 文字列の場合はそのまま辞書順
+
+        # 小さい順に整列された選択肢を生成
+        player_names = sorted(
+            list(st.session_state.players.keys()), key=get_sort_key
+        )
+
         my_name = st.selectbox(
-            "あなたの出席番号（名前）を選択してください", player_names
+            "あなたの出席番号を選択してください",
+            player_names,
+            index=None,
+            placeholder="選択してください...",
         )
 
         if my_name:
