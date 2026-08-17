@@ -40,9 +40,9 @@ if mode == "教員用管理画面":
 
     col1, col2 = st.columns(2)
     with col1:
-        min_val = st.number_input("評価額/コストの最小値", value=100, step=50)
+        min_val = st.number_input("評価額/コストの最小値", value=100, step=100)
     with col2:
-        max_val = st.number_input("評価額/コストの最大値", value=1000, step=50)
+        max_val = st.number_input("評価額/コストの最大値", value=2200, step=100)
 
     if st.button("👥 役割割り当て＆実験スタート", type="primary"):
         students = [
