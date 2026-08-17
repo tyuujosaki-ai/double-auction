@@ -119,21 +119,13 @@ if mode == "教員用管理画面":
             height=200,
         )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            min_val = st.number_input(
-                "評価額/コストの最小値（円）",
-                value=100,
-                step=100,
-                min_value=0,
-            )
-        with col2:
-            max_val = st.number_input(
-                "評価額/コストの最大値（円）",
-                value=2200,
-                step=100,
-                min_value=0,
-            )
+        # 価格範囲の定数定義
+        BUYER_MIN, BUYER_MAX = 200, 2100
+        SELLER_MIN, SELLER_MAX = 100, 2100
+
+        st.caption(
+            f"※ 自動設定範囲: 買い手 (所持金 {BUYER_MIN}円〜{BUYER_MAX}円) / 売り手 (生産コスト {SELLER_MIN}円〜{SELLER_MAX}円) ※各同額なし"
+        )
 
         if st.button("👥 役割割り当て＆実験スタート", type="primary"):
             students = [
@@ -143,8 +135,6 @@ if mode == "教員用管理画面":
 
             if num_students < 2:
                 st.error("生徒は2名以上必要です。")
-            elif min_val > max_val:
-                st.error("最小値は最大値以下の数値を設定してください。")
             else:
                 shuffled_students = students.copy()
                 random.shuffle(shuffled_students)
@@ -153,32 +143,44 @@ if mode == "教員用管理画面":
                 buyers = shuffled_students[:half]
                 sellers = shuffled_students[half:]
 
-                players = {}
-                # 100円刻みで評価額/コストを設定
-                for b in buyers:
-                    players[b] = {
-                        "role": "買い手",
-                        "value": random.randrange(min_val, max_val + 1, 100),
-                        "traded": False,
-                    }
-                for s in sellers:
-                    players[s] = {
-                        "role": "売り手",
-                        "value": random.randrange(min_val, max_val + 1, 100),
-                        "traded": False,
-                    }
+                # 100円刻みの候補リストを作成
+                buyer_candidates = list(range(BUYER_MIN, BUYER_MAX + 1, 100))  # 200〜2100 (20種類)
+                seller_candidates = list(range(SELLER_MIN, SELLER_MAX + 1, 100))  # 100〜2100 (21種類)
 
-                st.session_state.players = {
-                    s: players[s] for s in students if s in players
-                }
-                st.session_state.bids = []
-                st.session_state.asks = []
-                st.session_state.trades = []
-                st.session_state.last_order_msg = {}
-                st.session_state.game_started = True
-                st.success(
-                    f"実験を開始しました！（買い手: {len(buyers)}名, 売り手: {len(sellers)}名）"
-                )
+                if len(buyers) > len(buyer_candidates):
+                    st.error(f"買い手の人数（{len(buyers)}名）が所持金のバリエーション数（{len(buyer_candidates)}通り）を超えています。人数を減らしてください。")
+                elif len(sellers) > len(seller_candidates):
+                    st.error(f"売り手の人数（{len(sellers)}名）が生産コストのバリエーション数（{len(seller_candidates)}通り）を超えています。人数を減らしてください。")
+                else:
+                    # 重複なし（同額なし）でランダム抽出
+                    buyer_values = random.sample(buyer_candidates, len(buyers))
+                    seller_values = random.sample(seller_candidates, len(sellers))
+
+                    players = {}
+                    for b, val in zip(buyers, buyer_values):
+                        players[b] = {
+                            "role": "買い手",
+                            "value": val,
+                            "traded": False,
+                        }
+                    for s, val in zip(sellers, seller_values):
+                        players[s] = {
+                            "role": "売り手",
+                            "value": val,
+                            "traded": False,
+                        }
+
+                    st.session_state.players = {
+                        s: players[s] for s in students if s in players
+                    }
+                    st.session_state.bids = []
+                    st.session_state.asks = []
+                    st.session_state.trades = []
+                    st.session_state.last_order_msg = {}
+                    st.session_state.game_started = True
+                    st.success(
+                        f"実験を開始しました！（買い手: {len(buyers)}名, 売り手: {len(sellers)}名）"
+                    )
 
         st.divider()
 
@@ -186,7 +188,7 @@ if mode == "教員用管理画面":
         st.subheader("2. 市場の状況（リアルタイム）")
 
         if st.session_state.game_started and st.session_state.players:
-            # 💡 均衡価格（理論値）の計算表示
+            # 均衡価格（理論値）の計算表示
             eq_price, eq_qty = calculate_equilibrium(st.session_state.players)
 
             st.info("📊 **【理論値】市場の均衡予想**")
