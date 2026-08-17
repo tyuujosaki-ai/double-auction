@@ -1,23 +1,31 @@
 import random
+import time
 import pandas as pd
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 
 # ページ初期設定
-st.set_page_config(page_title="経済実験：オーラルダブルオークション", layout="wide")
+st.set_page_config(
+    page_title="経済実験：オーラルダブルオークション", layout="wide"
+)
 
 # セッション状態の初期化
-if "game_state" not in st.session_state:
+if "game_started" not in st.session_state:
     st.session_state.game_started = False
+if "players" not in st.session_state:
     st.session_state.players = {}  # {name: {'role': ..., 'value': ...}}
+if "bids" not in st.session_state:
     st.session_state.bids = []  # 買い注文 [{'player': ..., 'price': ...}]
+if "asks" not in st.session_state:
     st.session_state.asks = []  # 売り注文 [{'player': ..., 'price': ...}]
-    st.session_state.trades = []  # 成立取引 [{'buyer': ..., 'seller': ..., 'price': ...}]
+if "trades" not in st.session_state:
+    st.session_state.trades = (
+        []
+    )  # 成立取引 [{'buyer': ..., 'seller': ..., 'price': ...}]
 if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 
-# 管理画面用パスワード設定（※自由に変更してください）
-ADMIN_PASSWORD = "admin1234"
+# 管理画面用パスワード設定
+ADMIN_PASSWORD = "5327"
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
@@ -34,8 +42,10 @@ if mode == "教員用管理画面":
     # パスワード認証ブロック
     if not st.session_state.admin_authenticated:
         st.subheader("🔐 管理者認証")
-        input_password = st.text_input("教員用パスワードを入力してください", type="password")
-        
+        input_password = st.text_input(
+            "教員用パスワードを入力してください", type="password"
+        )
+
         if st.button("ログイン"):
             if input_password == ADMIN_PASSWORD:
                 st.session_state.admin_authenticated = True
@@ -51,22 +61,29 @@ if mode == "教員用管理画面":
 
         # 実験設定・開始パネル
         st.subheader("1. 実験の準備と開始")
-        
+
         # 1〜41までの全角数字を生成して初期値に設定
-        zenkaku_numbers = [str(i).translate(str.maketrans('0123456789', '０１２３４５６７８９')) for i in range(1, 42)]
+        zenkaku_numbers = [
+            str(i).translate(str.maketrans("0123456789", "０１２３４５６７８９"))
+            for i in range(1, 42)
+        ]
         default_students = "\n".join(zenkaku_numbers)
-        
+
         student_list_input = st.text_area(
             "参加する生徒の名前（または出席番号）を改行区切りで入力してください",
             value=default_students,
-            height=300
+            height=300,
         )
 
         col1, col2 = st.columns(2)
         with col1:
-            min_val = st.number_input("評価額/コストの最小値", value=100, step=100)
+            min_val = st.number_input(
+                "評価額/コストの最小値", value=100, step=100
+            )
         with col2:
-            max_val = st.number_input("評価額/コストの最大値", value=2200, step=100)
+            max_val = st.number_input(
+                "評価額/コストの最大値", value=2200, step=100
+            )
 
         if st.button("👥 役割割り当て＆実験スタート", type="primary"):
             students = [
@@ -113,8 +130,7 @@ if mode == "教員用管理画面":
 
         st.divider()
 
-        # リアルタイム監視パネル（教員画面も3秒ごとに自動更新）
-        st_autorefresh(interval=3000, key="admin_refresh")
+        # リアルタイム監視パネル
         st.subheader("2. 市場の状況（リアルタイム）")
 
         col_a, col_b = st.columns(2)
@@ -146,17 +162,18 @@ if mode == "教員用管理画面":
 else:
     st.header("👤 生徒用 取引画面")
 
-    # 2秒ごとに画面を自動更新（リアルタイム反映のため）
-    st_autorefresh(interval=2000, key="student_refresh")
-
     if not st.session_state.game_started:
         st.warning(
-            "教員が実験を開始するまでお待ちください。（画面は自動で更新されます）"
+            "教員が実験を開始するまでお待ちください。（自動で確認中...）"
         )
+        time.sleep(2)
+        st.rerun()
     else:
         # 生徒の識別
         player_names = list(st.session_state.players.keys())
-        my_name = st.selectbox("あなたの出席番号（名前）を選択してください", player_names)
+        my_name = st.selectbox(
+            "あなたの出席番号（名前）を選択してください", player_names
+        )
 
         if my_name:
             my_info = st.session_state.players[my_name]
@@ -191,7 +208,10 @@ else:
 
                 # 発注フォーム
                 price_input = st.number_input(
-                    "提示する価格（円）", min_value=0, step=100, value=limit_val
+                    "提示する価格（円）",
+                    min_value=0,
+                    step=100,
+                    value=limit_val,
                 )
 
                 if st.button("注文を提出する", type="primary"):
@@ -213,7 +233,6 @@ else:
                             )
 
                         # 約定（マッチング）ロジックの実行
-                        # 買いの最高値 >= 売り的最安値 であれば取引成立
                         valid_bids = [
                             b
                             for b in st.session_state.bids
@@ -234,7 +253,6 @@ else:
                             min_ask = min(valid_asks, key=lambda x: x["price"])
 
                             if max_bid["price"] >= min_ask["price"]:
-                                # 約定価格は間を取る（または先に提示された側）
                                 trade_price = (
                                     max_bid["price"] + min_ask["price"]
                                 ) // 2
@@ -245,7 +263,6 @@ else:
                                         "price": trade_price,
                                     }
                                 )
-                                # フラグ更新
                                 st.session_state.players[max_bid["player"]][
                                     "traded"
                                 ] = True
