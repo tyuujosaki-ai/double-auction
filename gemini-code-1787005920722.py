@@ -23,9 +23,11 @@ if "trades" not in st.session_state:
     )  # 成立取引 [{'buyer': ..., 'seller': ..., 'price': ...}]
 if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
+if "last_order_msg" not in st.session_state:
+    st.session_state.last_order_msg = {}  # 各生徒の最後の注文メッセージ保持用
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "5327"
+ADMIN_PASSWORD = "admin1234"
 
 # タイトル
 st.title("📈 経済実験：市場メカニズムと均衡価格")
@@ -129,6 +131,7 @@ if mode == "教員用管理画面":
                 st.session_state.bids = []
                 st.session_state.asks = []
                 st.session_state.trades = []
+                st.session_state.last_order_msg = {}
                 st.session_state.game_started = True
                 st.success(
                     f"実験を開始しました！（買い手: {len(buyers)}名, 売り手: {len(sellers)}名）"
@@ -177,16 +180,14 @@ else:
     else:
         # 生徒リストを番号順（昇順）にソート
         def get_sort_key(name):
-            # 全角数字を半角数字に変換して数値化を試みる
             half_name = name.translate(
                 str.maketrans("０１２３４５６７８９", "0123456789")
             )
             try:
-                return (0, int(half_name))  # 数値に変換できる場合は数値順
+                return (0, int(half_name))
             except ValueError:
-                return (1, name)  # 文字列の場合はそのまま辞書順
+                return (1, name)
 
-        # 小さい順に整列された選択肢を生成
         player_names = sorted(
             list(st.session_state.players.keys()), key=get_sort_key
         )
@@ -237,7 +238,7 @@ else:
                     value=limit_val,
                 )
 
-                if st.button("注文を提出する", type="primary"):
+                if st.button("注文する", type="primary"):
                     # チェック処理
                     if role == "買い手" and price_input > limit_val:
                         st.error("所持金を超える金額は提示できません！")
@@ -254,6 +255,9 @@ else:
                             st.session_state.asks.append(
                                 {"player": my_name, "price": price_input}
                             )
+
+                        # 注文完了メッセージの保持
+                        st.session_state.last_order_msg[my_name] = f"注文しました！（提示価格: {price_input} 円）"
 
                         # 約定（マッチング）ロジックの実行
                         valid_bids = [
@@ -292,10 +296,12 @@ else:
                                 st.session_state.players[min_ask["player"]][
                                     "traded"
                                 ] = True
-                                st.balloons()
-                                st.success("取引が成立しました！")
 
                         st.rerun()
+
+                # 直前に注文を出していた場合はメッセージを表示
+                if my_name in st.session_state.last_order_msg:
+                    st.info(st.session_state.last_order_msg[my_name])
 
             # 現在の市場板情報
             st.divider()
