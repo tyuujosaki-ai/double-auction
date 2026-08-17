@@ -6,7 +6,7 @@ import streamlit as st
 st.set_page_config(page_title="経済実験：オーラルダブルオークション", layout="wide")
 
 # セッション状態の初期化
-if "game_state" not in st.groupby if hasattr(st, "groupby") else st.session_state:
+if "game_state" not in st.session_state:
     st.session_state.game_started = False
     st.session_state.players = {}  # {name: {'role': ..., 'value': ...}}
     st.session_state.bids = []  # 買い注文 [{'player': ..., 'price': ...}]
@@ -27,9 +27,15 @@ if mode == "教員用管理画面":
 
     # 実験設定・開始パネル
     st.subheader("1. 実験の準備と開始")
+    
+    # 1〜41までの全角数字を生成して初期値に設定
+    zenkaku_numbers = [str(i).translate(str.maketrans('0123456789', '０１２３４５６７８９')) for i in range(1, 42)]
+    default_students = "\n".join(zenkaku_numbers)
+    
     student_list_input = st.text_area(
         "参加する生徒の名前（または出席番号）を改行区切りで入力してください",
-        "生徒1\n生徒2\n生徒3\n生徒4\n生徒5",
+        value=default_students,
+        height=300
     )
 
     col1, col2 = st.columns(2)
@@ -115,12 +121,12 @@ else:
 
     if not st.session_state.game_started:
         st.warning(
-            "教員が実験を開始するまでお待ちください。画面を更新（F5）して確認してください。"
+            "教員が実験を開始するまでお待ちください。画面を更新（リロード）して確認してください。"
         )
     else:
         # 生徒の識別
         player_names = list(st.session_state.players.keys())
-        my_name = st.selectbox("あなたの名前を選択してください", player_names)
+        my_name = st.selectbox("あなたの出席番号（名前）を選択してください", player_names)
 
         if my_name:
             my_info = st.session_state.players[my_name]
