@@ -27,7 +27,7 @@ if "last_order_msg" not in st.session_state:
     st.session_state.last_order_msg = {}  # 各生徒の最後の注文メッセージ保持用
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "5327"
+ADMIN_PASSWORD = "admin1234"
 
 
 def calculate_equilibrium(players):
@@ -119,22 +119,30 @@ if mode == "教員用管理画面":
             height=200,
         )
 
-        # 価格上限の設定（2100円を初期値として100円刻みで可変）
+        # 買い手・売り手それぞれの最大値個別設定（デフォルト2100円）
         col_cfg1, col_cfg2 = st.columns(2)
         with col_cfg1:
-            max_price_setting = st.number_input(
-                "評価額 / コストの最大値（円）",
-                min_value=300,
+            buyer_max_setting = st.number_input(
+                "買い手（所持金）の最大値（円）",
+                min_value=200,
+                max_value=10000,
+                value=2100,
+                step=100,
+            )
+        with col_cfg2:
+            seller_max_setting = st.number_input(
+                "売り手（生産コスト）の最大値（円）",
+                min_value=100,
                 max_value=10000,
                 value=2100,
                 step=100,
             )
 
-        BUYER_MIN, BUYER_MAX = 200, max_price_setting
-        SELLER_MIN, SELLER_MAX = 100, max_price_setting
+        BUYER_MIN, BUYER_MAX = 200, buyer_max_setting
+        SELLER_MIN, SELLER_MAX = 100, seller_max_setting
 
         st.caption(
-            f"※ 最小値/最大値: 買い手 ({BUYER_MIN}円〜{BUYER_MAX}円) / 売り手 ({SELLER_MIN}円〜{SELLER_MAX}円) ※100円刻み・各同額なし"
+            f"※ 自動設定範囲: 買い手 ({BUYER_MIN}円〜{BUYER_MAX}円) / 売り手 ({SELLER_MIN}円〜{SELLER_MAX}円) ※100円刻み・各同額なし"
         )
 
         if st.button("👥 役割割り当て＆実験スタート", type="primary"):
@@ -161,11 +169,11 @@ if mode == "教員用管理画面":
 
                 if len(buyers) > len(buyer_candidates):
                     st.error(
-                        f"買い手の人数（{len(buyers)}名）が所持金のバリエーション数（{len(buyer_candidates)}通り）を超えています。最大値を上げるか人数を減らしてください。"
+                        f"買い手の人数（{len(buyers)}名）が所持金のバリエーション数（{len(buyer_candidates)}通り）を超えています。買い手の最大値を上げるか人数を減らしてください。"
                     )
                 elif len(sellers) > len(seller_candidates):
                     st.error(
-                        f"売り手の人数（{len(sellers)}名）が生産コストのバリエーション数（{len(seller_candidates)}通り）を超えています。最大値を上げるか人数を減らしてください。"
+                        f"売り手の人数（{len(sellers)}名）が生産コストのバリエーション数（{len(seller_candidates)}通り）を超えています。売り手の最大値を上げるか人数を減らしてください。"
                     )
                 else:
                     # 重複なし（同額なし）でランダム抽出
