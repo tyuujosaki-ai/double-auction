@@ -12,7 +12,7 @@ st.set_page_config(
 if "game_started" not in st.session_state:
     st.session_state.game_started = False
 if "players" not in st.session_state:
-    st.session_state.players = {}  # {name: {'role': ..., 'value': ...}}
+    st.session_state.players = {}  # {name: {'role': ..., 'value': ..., 'traded': ..., 'trade_price': ..., 'point': ...}}
 if "bids" not in st.session_state:
     st.session_state.bids = []  # 買い注文 [{'player': ..., 'price': ...}]
 if "asks" not in st.session_state:
@@ -20,14 +20,14 @@ if "asks" not in st.session_state:
 if "trades" not in st.session_state:
     st.session_state.trades = (
         []
-    )  # 成立取引 [{'buyer': ..., 'seller': ..., 'price': ...}]
+    )  # 成立取引 [{'buyer': ..., 'seller': ..., 'price': ..., 'buyer_point': ..., 'seller_point': ...}]
 if "admin_authenticated" not in st.session_state:
     st.session_state.admin_authenticated = False
 if "last_order_msg" not in st.session_state:
     st.session_state.last_order_msg = {}  # 各生徒の最後の注文メッセージ保持用
 
 # 管理画面用パスワード設定
-ADMIN_PASSWORD = "5327"
+ADMIN_PASSWORD = "admin1234"
 
 
 def calculate_equilibrium(players):
@@ -119,12 +119,22 @@ if mode == "教員用管理画面":
             height=200,
         )
 
-        # 価格範囲の定数定義
-        BUYER_MIN, BUYER_MAX = 200, 2100
-        SELLER_MIN, SELLER_MAX = 100, 2100
+        # 価格上限の設定（2100円を初期値として100円刻みで可変）
+        col_cfg1, col_cfg2 = st.columns(2)
+        with col_cfg1:
+            max_price_setting = st.number_input(
+                "評価額 / コストの最大値（円）",
+                min_value=300,
+                max_value=10000,
+                value=2100,
+                step=100,
+            )
+
+        BUYER_MIN, BUYER_MAX = 200, max_price_setting
+        SELLER_MIN, SELLER_MAX = 100, max_price_setting
 
         st.caption(
-            f"※ 自動設定範囲: 買い手 (所持金 {BUYER_MIN}円〜{BUYER_MAX}円) / 売り手 (生産コスト {SELLER_MIN}円〜{SELLER_MAX}円) ※各同額なし"
+            f"※ 最小値/最大値: 買い手 ({BUYER_MIN}円〜{BUYER_MAX}円) / 売り手 ({SELLER_MIN}円〜{SELLER_MAX}円) ※100円刻み・各同額なし"
         )
 
         if st.button("👥 役割割り当て＆実験スタート", type="primary"):
@@ -144,17 +154,27 @@ if mode == "教員用管理画面":
                 sellers = shuffled_students[half:]
 
                 # 100円刻みの候補リストを作成
-                buyer_candidates = list(range(BUYER_MIN, BUYER_MAX + 1, 100))  # 200〜2100 (20種類)
-                seller_candidates = list(range(SELLER_MIN, SELLER_MAX + 1, 100))  # 100〜2100 (21種類)
+                buyer_candidates = list(range(BUYER_MIN, BUYER_MAX + 1, 100))
+                seller_candidates = list(
+                    range(SELLER_MIN, SELLER_MAX + 1, 100)
+                )
 
                 if len(buyers) > len(buyer_candidates):
-                    st.error(f"買い手の人数（{len(buyers)}名）が所持金のバリエーション数（{len(buyer_candidates)}通り）を超えています。人数を減らしてください。")
+                    st.error(
+                        f"買い手の人数（{len(buyers)}名）が所持金のバリエーション数（{len(buyer_candidates)}通り）を超えています。最大値を上げるか人数を減らしてください。"
+                    )
                 elif len(sellers) > len(seller_candidates):
-                    st.error(f"売り手の人数（{len(sellers)}名）が生産コストのバリエーション数（{len(seller_candidates)}通り）を超えています。人数を減らしてください。")
+                    st.error(
+                        f"売り手の人数（{len(sellers)}名）が生産コストのバリエーション数（{len(seller_candidates)}通り）を超えています。最大値を上げるか人数を減らしてください。"
+                    )
                 else:
                     # 重複なし（同額なし）でランダム抽出
-                    buyer_values = random.sample(buyer_candidates, len(buyers))
-                    seller_values = random.sample(seller_candidates, len(sellers))
+                    buyer_values = random.sample(
+                        buyer_candidates, len(buyers)
+                    )
+                    seller_values = random.sample(
+                        seller_candidates, len(sellers)
+                    )
 
                     players = {}
                     for b, val in zip(buyers, buyer_values):
@@ -162,12 +182,16 @@ if mode == "教員用管理画面":
                             "role": "買い手",
                             "value": val,
                             "traded": False,
+                            "trade_price": None,
+                            "point": 0,
                         }
                     for s, val in zip(sellers, seller_values):
                         players[s] = {
                             "role": "売り手",
                             "value": val,
                             "traded": False,
+                            "trade_price": None,
+                            "point": 0,
                         }
 
                     st.session_state.players = {
@@ -205,19 +229,36 @@ if mode == "教員用管理画面":
             st.write("### 📜 成約履歴")
             if st.session_state.trades:
                 df_trades = pd.DataFrame(st.session_state.trades)
-                st.dataframe(df_trades, use_container_width=True)
+                df_trades_display = df_trades.rename(
+                    columns={
+                        "buyer": "買い手",
+                        "seller": "売り手",
+                        "price": "取引価格(円)",
+                        "buyer_point": "買い手獲得pt",
+                        "seller_point": "売り手獲得pt",
+                    }
+                )
+                st.dataframe(df_trades_display, use_container_width=True)
                 st.line_chart(df_trades["price"])
             else:
                 st.info("まだ取引は成立していません。")
 
         with col_b:
-            st.write("### 👥 参加者一覧と割り当て条件")
+            st.write("### 👥 参加者一覧と獲得ポイント")
             if st.session_state.players:
                 df_players = pd.DataFrame.from_dict(
                     st.session_state.players, orient="index"
                 )
-                df_players.columns = ["役割", "所持金 / コスト", "取引完了"]
-                st.dataframe(df_players, use_container_width=True)
+                df_players_display = df_players.rename(
+                    columns={
+                        "role": "役割",
+                        "value": "所持金 / コスト",
+                        "traded": "取引完了",
+                        "trade_price": "約定価格",
+                        "point": "獲得ポイント",
+                    }
+                )
+                st.dataframe(df_players_display, use_container_width=True)
 
         if st.button("実験をリセットする"):
             st.session_state.game_started = False
@@ -236,6 +277,7 @@ else:
         time.sleep(2)
         st.rerun()
     else:
+
         def get_sort_key(name):
             half_name = name.translate(
                 str.maketrans("０１２３４５６７８９", "0123456789")
@@ -263,25 +305,37 @@ else:
 
             st.info(f"**あなたの役割:** {role}")
 
-            if role == "買い手":
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                if role == "買い手":
+                    st.metric(
+                        label="💰 あなたの所持金（上限価格）",
+                        value=f"{limit_val} 円",
+                    )
+                else:
+                    st.metric(
+                        label="🏭 あなたの生産コスト（下限価格）",
+                        value=f"{limit_val} 円",
+                    )
+            with col_m2:
                 st.metric(
-                    label="💰 あなたの所持金（上限価格）",
-                    value=f"{limit_val} 円",
+                    label="🏆 あなたの獲得ポイント",
+                    value=f"{my_info['point']} pt",
                 )
+
+            if role == "買い手":
                 st.caption(
-                    "※ これより高い金額での購入はできません。なるべく安く買いましょう。"
+                    "※ これより高い金額での購入はできません。安く買うほどポイント（所持金 - 購入額）が高くなります。"
                 )
             else:
-                st.metric(
-                    label="🏭 あなたの生産コスト（下限価格）",
-                    value=f"{limit_val} 円",
-                )
                 st.caption(
-                    "※ これより低い金額での売却はできません。なるべく高く売りましょう。"
+                    "※ これより低い金額での売却はできません。高く売るほどポイント（売却額 - コスト）が高くなります。"
                 )
 
             if my_info["traded"]:
-                st.success("🎉 あなたの取引はすでに成立しました！")
+                st.success(
+                    f"🎉 取引が成立しました！ （約定価格: {my_info['trade_price']} 円 / 獲得ポイント: {my_info['point']} pt）"
+                )
             else:
                 st.divider()
                 st.subheader("注文の発注")
@@ -336,19 +390,53 @@ else:
                                 trade_price = (
                                     max_bid["price"] + min_ask["price"]
                                 ) // 2
+
+                                buyer_name = max_bid["player"]
+                                seller_name = min_ask["player"]
+
+                                buyer_val = st.session_state.players[
+                                    buyer_name
+                                ]["value"]
+                                seller_val = st.session_state.players[
+                                    seller_name
+                                ]["value"]
+
+                                # ポイント計算（差額）
+                                buyer_pt = buyer_val - trade_price
+                                seller_pt = trade_price - seller_val
+
+                                # 成立記録更新
                                 st.session_state.trades.append(
                                     {
-                                        "買い手": max_bid["player"],
-                                        "売り手": min_ask["player"],
+                                        "buyer": buyer_name,
+                                        "seller": seller_name,
                                         "price": trade_price,
+                                        "buyer_point": buyer_pt,
+                                        "seller_point": seller_pt,
                                     }
                                 )
-                                st.session_state.players[max_bid["player"]][
+
+                                # 買い手の情報更新
+                                st.session_state.players[buyer_name][
                                     "traded"
                                 ] = True
-                                st.session_state.players[min_ask["player"]][
+                                st.session_state.players[buyer_name][
+                                    "trade_price"
+                                ] = trade_price
+                                st.session_state.players[buyer_name][
+                                    "point"
+                                ] = buyer_pt
+
+                                # 売り手の情報更新
+                                st.session_state.players[seller_name][
                                     "traded"
                                 ] = True
+                                st.session_state.players[seller_name][
+                                    "trade_price"
+                                ] = trade_price
+                                st.session_state.players[seller_name][
+                                    "point"
+                                ] = seller_pt
 
                         st.rerun()
 
